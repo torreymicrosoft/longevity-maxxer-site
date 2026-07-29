@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Longevity Maxxer | Your healthspan operating system</title>
+  <meta name="description" content="Longevity Maxxer turns the noisy longevity space into a focused, evidence-graded system. Track what matters, get the highest-leverage next action, and compound small habits into decades of healthspan. Educational wellness, not medical advice." />
+  <meta name="color-scheme" content="light" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="/" />
+  <meta property="og:title" content="Longevity Maxxer | Your healthspan operating system" />
+  <meta property="og:description" content="A focused, evidence-graded system for healthspan. Educational wellness, not medical advice." />
+  <meta property="og:type" content="website" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav__inner">
+      <a class="brand" href="/">
+        <img class="brand__mark" src="/assets/favicon.svg" alt="" width="30" height="30" />
+        Longevity Maxxer
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="/#pillars">Pillars</a>
+        <a href="/#how">How it works</a>
+        <a href="/#selfcheck">Self-check</a>
+        <a href="/personas.html">Personas</a>
+        <a href="/#evidence">Evidence</a>
+        <a href="/safety.html">Safety</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="/#selfcheck">Try the self-check</a>
+      <button class="nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Hero -->
+    <section class="hero">
+      <div class="wrap hero__inner">
+        <div>
+          <span class="eyebrow">Healthspan operating system</span>
+          <h1>Compound small habits into decades of healthspan.</h1>
+          <p class="hero__lead">The longevity space is loud, hype-heavy, and fragmented. Longevity Maxxer makes it focused. Track the inputs that matter, see the few that move the needle, and get your highest-leverage next action before you even ask.</p>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="/#selfcheck">Try the private self-check</a>
+            <a class="btn btn--ghost" href="/#how">See how it works</a>
+          </div>
+          <div class="hero__badges">
+            <span class="hero__badge">Educational, not medical</span>
+            <span class="hero__badge">Evidence-graded</span>
+            <span class="hero__badge">Zero-PHI by design</span>
+            <span class="hero__badge">Privacy-first</span>
+          </div>
+          <p class="hero__note">Your data never leaves your device. The self-check runs entirely in your browser.</p>
+        </div>
+        <aside class="scorecard" aria-label="Illustrative healthspan snapshot">
+          <div class="scorecard__top">
+            <span class="scorecard__label">Healthspan snapshot</span>
+            <span class="tier tier--emerging">Illustrative</span>
+          </div>
+          <div class="ring" data-val="78"></div>
+          <ul class="scorecard__pillars">
+            <li>Cardio <span class="bar"><span style="width:62%"></span></span></li>
+            <li>Strength <span class="bar"><span style="width:70%"></span></span></li>
+            <li>Sleep <span class="bar"><span style="width:54%"></span></span></li>
+            <li>Metabolic <span class="bar"><span style="width:66%"></span></span></li>
+          </ul>
+          <p class="scorecard__foot">Sample only. Not a real person and not a diagnosis.</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Problem -->
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="grid grid--3">
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">!</div>
+            <h3>Advice is noisy</h3>
+            <p>Influencers, protocols, and supplement pitches contradict each other. It is hard to know the few things that actually matter.</p>
+          </article>
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">#</div>
+            <h3>Data is fragmented</h3>
+            <p>Your watch, your scale, and your lab portal never talk to each other. The signal is scattered across a dozen apps.</p>
+          </article>
+          <article class="card">
+            <div class="card__icon" aria-hidden="true">&gt;</div>
+            <h3>Tracking is not acting</h3>
+            <p>People collect plenty of data and still do not know today's next move. The loop only closes when something reaches out first.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- Pillars -->
+    <section class="section section--surface" id="pillars">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">What we optimize</span>
+          <h2>Nine pillars, ranked by leverage.</h2>
+          <p class="lead">We structure everything around the domains with the strongest link to a long, healthy life, and we start with the ones that move the needle most.</p>
+        </div>
+        <div class="grid grid--3" id="pillars-grid" style="margin-top:40px"></div>
+      </div>
+    </section>
+
+    <!-- How it works -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">How it works</span>
+          <h2>From scattered data to the next best action.</h2>
+        </div>
+        <div class="grid grid--4 steps" id="how-grid" style="margin-top:40px"></div>
+      </div>
+    </section>
+
+    <!-- Self-check tool -->
+    <section class="section section--surface" id="selfcheck">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">Private self-check</span>
+          <h2>See your highest-leverage focus in 30 seconds.</h2>
+          <p class="lead">Move the sliders. Everything is computed in your browser. No account, no upload, nothing stored on a server.</p>
+        </div>
+
+        <div class="tool" style="margin-top:36px">
+          <div class="tool__grid">
+            <form class="tool__form" id="selfcheckForm">
+              <div class="field">
+                <label for="sc-sleep">Average sleep <output for="sc-sleep">6.5h</output></label>
+                <input type="range" id="sc-sleep" min="4" max="9" step="0.5" value="6.5" data-key="sleep" data-suffix="h" />
+              </div>
+              <div class="field">
+                <label for="sc-cardio">Easy cardio sessions per week <output for="sc-cardio">3</output></label>
+                <input type="range" id="sc-cardio" min="0" max="6" step="1" value="3" data-key="cardio" />
+              </div>
+              <div class="field">
+                <label for="sc-strength">Strength sessions per week <output for="sc-strength">2</output></label>
+                <input type="range" id="sc-strength" min="0" max="5" step="1" value="2" data-key="strength" />
+              </div>
+              <div class="field">
+                <label>Whole-food quality</label>
+                <div class="seg" data-key="nutrition" role="group" aria-label="Whole-food quality">
+                  <button type="button" data-val="0">Building</button>
+                  <button type="button" data-val="1" aria-pressed="true">Decent</button>
+                  <button type="button" data-val="2">Dialed in</button>
+                </div>
+              </div>
+              <div class="field">
+                <label>Recovery and calm</label>
+                <div class="seg" data-key="stress" role="group" aria-label="Recovery and calm">
+                  <button type="button" data-val="0">Frazzled</button>
+                  <button type="button" data-val="1" aria-pressed="true">Okay</button>
+                  <button type="button" data-val="2">Rested</button>
+                </div>
+              </div>
+            </form>
+            <div class="tool__side">
+              <span class="scorecard__label">Illustrative focus score</span>
+              <div class="tool__result-num"><span id="checkScore">0</span><span style="font-size:1.2rem;color:#64748b">/100</span></div>
+              <div class="tool__focus">
+                <h4>Start here</h4>
+                <p id="checkFocus"></p>
+              </div>
+              <p class="tool__privacy">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4-3 6.5-7 9-4-2.5-7-5-7-9V6l7-3z" stroke="#5eead4" stroke-width="1.6" stroke-linejoin="round"/></svg>
+                Computed locally in your browser. Nothing here is sent, saved, or seen by us. This is general education, not a diagnosis.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div class="scope" style="margin-top:22px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0z" stroke="#b45309" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span><strong>Scope:</strong> This tool is for general wellness education. It does not diagnose, treat, or replace professional care. If a health issue worries you, talk to a licensed clinician.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Personas preview -->
+    <section class="section" id="personas-preview">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">Who it is for</span>
+          <h2>Built from real people, designed for many.</h2>
+          <p class="lead">We started with one deeply understood user and expanded to a spectrum of needs, from data-rich optimizers to reluctant partners.</p>
+        </div>
+        <div class="grid grid--3" id="personas-grid" style="margin-top:40px"></div>
+        <div class="center" style="margin-top:30px">
+          <a class="btn btn--light" href="/personas.html">Explore all six personas</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Evidence -->
+    <section class="section section--surface" id="evidence">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">How we handle claims</span>
+          <h2>Every claim carries an evidence tier.</h2>
+          <p class="lead">We would rather show you the strength of the science than hand you a confident sentence. Strong, moderate, or emerging, clearly labeled.</p>
+        </div>
+        <div class="pill-row center" style="justify-content:center;margin:22px 0 10px">
+          <span class="tier tier--strong">Strong evidence</span>
+          <span class="tier tier--moderate">Moderate evidence</span>
+          <span class="tier tier--emerging">Emerging evidence</span>
+        </div>
+        <div class="grid grid--3" id="evidence-grid" style="margin-top:26px"></div>
+      </div>
+    </section>
+
+    <!-- Safety teaser -->
+    <section class="section section--ink" id="safety-teaser">
+      <div class="wrap">
+        <div class="grid grid--2" style="align-items:center">
+          <div>
+            <span class="eyebrow">Safety by design</span>
+            <h2>A wellness tool that stays in its lane, on purpose.</h2>
+            <p>We built Longevity Maxxer to be safe from the ground up. No health data leaves your device, every claim is graded, and we coach habits rather than practice medicine. When a signal looks concerning, we point you to a professional, never to an in-app verdict.</p>
+            <a class="btn btn--primary" href="/safety.html">Read our safety and scope</a>
+          </div>
+          <div class="stack">
+            <div class="card" style="background:#0e1725;border-color:rgba(255,255,255,0.1)">
+              <h3 style="color:#fff">Coach, not clinician</h3>
+              <p style="color:#94a3b8;margin:0">We suggest habits. We never diagnose, prescribe, or treat.</p>
+            </div>
+            <div class="card" style="background:#0e1725;border-color:rgba(255,255,255,0.1)">
+              <h3 style="color:#fff">Zero-PHI architecture</h3>
+              <p style="color:#94a3b8;margin:0">There is nothing to breach because we never receive your health data.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="section center">
+      <div class="wrap">
+        <h2>Start with one high-leverage habit.</h2>
+        <p class="lead" style="margin-bottom:26px">Run the private self-check, find your focus area, and take one small step today. Your future self compounds the interest.</p>
+        <a class="btn btn--primary" href="/#selfcheck">Try the self-check</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer__grid">
+        <div>
+          <div class="footer__brand">
+            <img src="/assets/favicon.svg" alt="" width="26" height="26" /> Longevity Maxxer
+          </div>
+          <p style="max-width:34ch">A focused, evidence-graded system for turning small daily habits into decades of healthspan.</p>
+        </div>
+        <div>
+          <h4>Product</h4>
+          <ul>
+            <li><a href="/#pillars">Pillars</a></li>
+            <li><a href="/#how">How it works</a></li>
+            <li><a href="/#selfcheck">Self-check</a></li>
+            <li><a href="/personas.html">Personas</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Trust</h4>
+          <ul>
+            <li><a href="/safety.html">Safety and scope</a></li>
+            <li><a href="/#evidence">Evidence approach</a></li>
+            <li><a href="/privacy.html">Privacy</a></li>
+            <li><a href="/terms.html">Terms</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Remember</h4>
+          <ul>
+            <li>Educational wellness</li>
+            <li>Not medical advice</li>
+            <li>Talk to your clinician</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__legal">
+        <p><strong style="color:#cbd5e1">Not medical advice.</strong> Longevity Maxxer provides general wellness and educational information only. It does not diagnose, treat, cure, or prevent any disease and is not a substitute for professional medical care. Always seek the advice of a licensed clinician with questions about your health. If you think you may have a medical emergency, call your local emergency number.</p>
+        <p>&copy; <span id="year">2026</span> Longevity Maxxer. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+</body>
+</html>

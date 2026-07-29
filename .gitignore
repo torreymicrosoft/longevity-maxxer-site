@@ -1,0 +1,15 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
+
+# Node (only if tooling is ever added; the site itself needs none)
+node_modules/
+npm-debug.log*
+
+# Local env
+.env
+.env.*
+
+# Azure
+.azure/
