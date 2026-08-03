@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The App | Longevity Maxxer</title>
+  <meta name="description" content="Drop in your Withings export and get a real healthspan dashboard, a prioritized action plan, and a proactive coach, computed entirely in your browser. Your file is never uploaded, stored, or shared." />
+  <meta name="color-scheme" content="light" />
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+  <link rel="canonical" href="/app.html" />
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav__inner">
+      <a class="brand" href="/">
+        <img class="brand__mark" src="/assets/favicon.svg" alt="" width="30" height="30" />
+        Longevity Maxxer
+      </a>
+      <nav class="nav__links" aria-label="Primary">
+        <a href="/app.html" aria-current="page">The app</a>
+        <a href="/pillars.html">Pillars</a>
+        <a href="/assessment.html">Assessment</a>
+        <a href="/method.html">Method</a>
+        <a href="/personas.html">Personas</a>
+        <a href="/safety.html">Safety</a>
+      </nav>
+      <a class="btn btn--primary nav__cta" href="/app.html">Try the app</a>
+      <button class="nav__toggle" aria-label="Toggle menu" aria-expanded="false"><span></span><span></span><span></span></button>
+    </div>
+  </header>
+
+  <main>
+    <section class="section section--tight section--surface">
+      <div class="wrap center">
+        <span class="eyebrow">The app</span>
+        <h1>Your data, turned into one next move.</h1>
+        <p class="lead" style="margin-top:10px">Drop in your wearable export. In a second or two you get a real healthspan dashboard, a prioritized plan, and the single highest-leverage move for today, all computed on this device. Not a scripted demo. Your actual numbers.</p>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:0">
+      <div class="wrap">
+        <div class="privacy-strip">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v6c0 4-3 6.5-7 9-4-2.5-7-5-7-9V6l7-3z" stroke="#0d9488" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="#0d9488" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div>
+            <strong>Your file never leaves this device.</strong>
+            It is read in your browser with the local file API, analyzed in memory, and forgotten when you reload. No upload, no account, no server, no storage. You can turn off wifi and it still works. Identity files in the export (name, email) are ignored on purpose.
+          </div>
+        </div>
+
+        <p id="appError" class="app-error" role="alert" hidden></p>
+
+        <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Add your export file">
+          <svg class="dropzone__icon" width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <p class="dropzone__title">Drop your Withings export here</p>
+          <p class="dropzone__hint">the <code>.zip</code> you downloaded, or the <code>.csv</code> files inside it. Or click to choose.</p>
+          <input id="fileInput" type="file" accept=".zip,.csv" multiple hidden />
+        </div>
+
+        <div class="dropzone__actions">
+          <button type="button" class="btn btn--light" id="sampleBtn">Try with sample data</button>
+          <span class="muted">No wearable handy? See it work on a clearly fictional example.</span>
+        </div>
+
+        <details class="howto">
+          <summary>How to get your Withings export</summary>
+          <ol>
+            <li>Sign in at <span class="mono">account.withings.com</span> on a computer.</li>
+            <li>Open <strong>Download my data</strong> in your profile settings.</li>
+            <li>Request the export, then download the <span class="mono">.zip</span> when it is ready.</li>
+            <li>Come back here and drop the <span class="mono">.zip</span> in the box above.</li>
+          </ol>
+          <p class="muted">Oura, Apple Health, and Google Health support are next. Today the app reads Withings Health Mate exports.</p>
+        </details>
+      </div>
+    </section>
+
+    <section class="section" id="appEmpty" style="padding-top:0">
+      <div class="wrap">
+        <div class="center">
+          <span class="eyebrow">What you will get</span>
+          <h2>A real picture, not a wall of charts.</h2>
+        </div>
+        <div class="cols3" style="margin-top:28px">
+          <article class="ecard">
+            <span class="ecard__num">01</span>
+            <h3>One move today</h3>
+            <p>The proactive coach reads your latest data and hands you the single highest-leverage action, with a small first step. One move, not twenty.</p>
+          </article>
+          <article class="ecard">
+            <span class="ecard__num">02</span>
+            <h3>A scored dashboard</h3>
+            <p>Per-pillar sub-scores from what your data actually supports: activity, sleep, body composition, and arterial stiffness, each showing the number behind it.</p>
+          </article>
+          <article class="ecard">
+            <span class="ecard__num">03</span>
+            <h3>An honest map</h3>
+            <p>For what a wearable cannot see, like nutrition and labs, we say so plainly and show how to add it. We never invent a score.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="appResults" hidden>
+      <div class="wrap">
+        <p id="appAsOf" class="muted center" style="margin-bottom:18px"></p>
+
+        <div id="coachReal" class="coachreal-host"></div>
+
+        <div class="appscore">
+          <div class="appscore__ring">
+            <div class="appscore__num"><span id="appScore">0</span><span class="appscore__den">/100</span></div>
+            <span class="scorecard__label">Healthspan focus</span>
+          </div>
+          <div class="appscore__meta">
+            <p id="appScoreBand" class="appscore__band"></p>
+            <p class="muted">A weighted read of the pillars we can measure from your data. It is a focus aid, not a grade, and not a diagnosis.</p>
+          </div>
+        </div>
+
+        <div class="center" style="margin-top:40px">
+          <span class="eyebrow">Your metrics</span>
+          <h2>What your data shows.</h2>
+        </div>
+        <div id="appPillars" class="mgrid"></div>
+
+        <div class="assess__planwrap">
+          <div class="center">
+            <span class="eyebrow">Your plan</span>
+            <h2>Start here, in order.</h2>
+            <p class="lead">Ranked by leverage and how much room you have. Gentle by design.</p>
+          </div>
+          <div id="appPlan" style="max-width:820px;margin:28px auto 0"></div>
+          <div id="appClinician" style="max-width:820px;margin:0 auto" hidden></div>
+        </div>
+
+        <div id="appBlind" class="blind" hidden></div>
+
+        <div id="appProvenance" class="prov-wrap"></div>
+
+        <div class="center" style="margin-top:30px">
+          <button type="button" class="btn btn--light" id="appReset">Clear and start over</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--tight">
+      <div class="wrap">
+        <div class="scope">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 9v4m0 4h.01M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.7 3.86a2 2 0 0 0-3.4 0z" stroke="#b45309" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <span><strong>Scope:</strong> This is a general wellness education tool, not a diagnosis or a treatment plan. Scores and suggestions are illustrative and based on general wellness ranges, not medical thresholds. For anything about your specific health, talk to a licensed clinician. In an emergency, call your local emergency number.</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="wrap">
+      <div class="footer__grid">
+        <div>
+          <div class="footer__brand">
+            <img src="/assets/favicon.svg" alt="" width="26" height="26" /> Longevity Maxxer
+          </div>
+          <p style="max-width:34ch">A focused, evidence-graded system for turning small daily habits into decades of healthspan.</p>
+        </div>
+        <div>
+          <h4>Explore</h4>
+          <ul>
+            <li><a href="/app.html">The app</a></li>
+            <li><a href="/pillars.html">The nine pillars</a></li>
+            <li><a href="/assessment.html">Build your plan</a></li>
+            <li><a href="/method.html">Our method</a></li>
+            <li><a href="/personas.html">Personas</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Trust</h4>
+          <ul>
+            <li><a href="/safety.html">Safety and scope</a></li>
+            <li><a href="/method.html#evidence">Evidence approach</a></li>
+            <li><a href="/privacy.html">Privacy</a></li>
+            <li><a href="/terms.html">Terms</a></li>
+          </ul>
+        </div>
+        <div>
+          <h4>Remember</h4>
+          <ul>
+            <li>Educational wellness</li>
+            <li>Not medical advice</li>
+            <li>Talk to your clinician</li>
+          </ul>
+        </div>
+      </div>
+      <div class="footer__legal">
+        <p><strong style="color:#cbd5e1">Not medical advice.</strong> Longevity Maxxer provides general wellness and educational information only. It does not diagnose, treat, cure, or prevent any disease and is not a substitute for professional medical care. Always seek the advice of a licensed clinician with questions about your health. If you think you may have a medical emergency, call your local emergency number.</p>
+        <p>&copy; <span id="year">2026</span> Longevity Maxxer. All rights reserved.</p>
+      </div>
+    </div>
+  </footer>
+  <script src="/js/jszip.min.js"></script>
+  <script src="/js/main.js"></script>
+  <script src="/js/app.js"></script>
+</body>
+</html>
