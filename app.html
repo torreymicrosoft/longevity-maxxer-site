@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>The App | Longevity Maxxer</title>
-  <meta name="description" content="Drop in your Withings export and get a real healthspan dashboard, a prioritized action plan, and a proactive coach, computed entirely in your browser. Your file is never uploaded, stored, or shared." />
+  <meta name="description" content="Drop in your Withings, Apple Health, Oura, or Google Fit export and get a real healthspan dashboard, a prioritized action plan, and a proactive coach, computed entirely in your browser. Your file is never uploaded, stored, or shared." />
   <meta name="color-scheme" content="light" />
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
   <link rel="canonical" href="/app.html" />
@@ -53,9 +53,9 @@
 
         <div id="dropzone" class="dropzone" role="button" tabindex="0" aria-label="Add your export file">
           <svg class="dropzone__icon" width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 16V4m0 0L8 8m4-4 4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 15v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-          <p class="dropzone__title">Drop your Withings export here</p>
-          <p class="dropzone__hint">the <code>.zip</code> you downloaded, or the <code>.csv</code> files inside it. Or click to choose.</p>
-          <input id="fileInput" type="file" accept=".zip,.csv" multiple hidden />
+          <p class="dropzone__title">Drop your wearable export here</p>
+          <p class="dropzone__hint">Withings or Oura <code>.zip</code> (or the <code>.csv</code> files inside), Apple Health <code>export.xml</code>, or a Google Fit <code>.csv</code>. Or click to choose.</p>
+          <input id="fileInput" type="file" accept=".zip,.csv,.xml,.json" multiple hidden />
         </div>
 
         <div class="dropzone__actions">
@@ -64,14 +64,12 @@
         </div>
 
         <details class="howto">
-          <summary>How to get your Withings export</summary>
-          <ol>
-            <li>Sign in at <span class="mono">account.withings.com</span> on a computer.</li>
-            <li>Open <strong>Download my data</strong> in your profile settings.</li>
-            <li>Request the export, then download the <span class="mono">.zip</span> when it is ready.</li>
-            <li>Come back here and drop the <span class="mono">.zip</span> in the box above.</li>
-          </ol>
-          <p class="muted">Oura, Apple Health, and Google Health support are next. Today the app reads Withings Health Mate exports.</p>
+          <summary>How to get your export</summary>
+          <p><strong>Withings Health Mate.</strong> Sign in at <span class="mono">account.withings.com</span> on a computer, open <strong>Download my data</strong> in your profile, request the export, then drop the <span class="mono">.zip</span> above.</p>
+          <p><strong>Apple Health.</strong> On iPhone, open the <strong>Health</strong> app, tap your profile picture, choose <strong>Export All Health Data</strong>, then drop the <span class="mono">export.zip</span> (or the <span class="mono">export.xml</span> inside) above. This file can be large; it still stays on your device.</p>
+          <p><strong>Oura.</strong> In the Oura app, open <strong>Profile</strong>, then <strong>Membership Hub</strong>, then <strong>Export data</strong>, and request your data. Drop the <span class="mono">.zip</span> of CSVs (or <span class="mono">sleepmodel.csv</span> and <span class="mono">dailyactivity.csv</span>) above.</p>
+          <p><strong>Google Fit.</strong> At <span class="mono">takeout.google.com</span> select <strong>Fit</strong> and export. Drop the <span class="mono">Daily activity metrics</span> CSV files above.</p>
+          <p class="muted">You can drop more than one source at once and the app combines them, keeping the richest reading for each metric. Withings and Apple Health are the most complete. Oura and Google Fit are supported on a best-effort basis and we will keep tuning them. Nothing you drop is uploaded or stored.</p>
         </details>
       </div>
     </section>

@@ -259,18 +259,73 @@
     return b - a;
   }
 
-  function analyzeFiles(map) {
-    // map: basename(lower) -> csv text
-    const get = (name) => map[name] || null;
+  /* A normalized "bundle" is the common shape every source adapter produces.
+     The model builder and scorers only ever see this, so adding a source is
+     just: detect it, and emit these same series. */
+  function newBundle(source) {
+    return {
+      source: source,
+      weight: [], heightIn: NaN, steps: [], distance: [], sleep: [],
+      pwv: [], bp: [], activities: [], restingHRSeries: [],
+      prov: {},
+    };
+  }
 
-    const weight = get("weight.csv") ? parseWeight(get("weight.csv")) : [];
-    const heightIn = get("height.csv") ? parseHeightInches(get("height.csv")) : NaN;
-    const steps = get("aggregates_steps.csv") ? parseAggregate(get("aggregates_steps.csv")) : [];
-    const distance = get("aggregates_distance.csv") ? parseAggregate(get("aggregates_distance.csv")) : [];
-    const sleep = get("sleep.csv") ? parseSleep(get("sleep.csv")) : [];
-    const pwv = get("pwv.csv") ? parsePwv(get("pwv.csv")) : [];
-    const bp = get("bp.csv") ? parseBp(get("bp.csv")) : [];
-    const activities = get("activities.csv") ? parseActivities(get("activities.csv")) : [];
+  /* --------------------------------------------------- source dispatch ----- */
+
+  function analyzeFiles(map) {
+    // map: (relative path or basename, lowercased) -> file text
+    const extractors = [extractWithings, extractOura, extractApple, extractGoogle];
+    const bundles = [];
+    for (const fn of extractors) {
+      let b = null;
+      try { b = fn(map); } catch (e) { b = null; }
+      if (b) bundles.push(b);
+    }
+    return buildModel(mergeBundles(bundles));
+  }
+
+  // When several exports are dropped at once, take the richest series per
+  // metric (most records wins). This lets, say, Withings body comp combine
+  // with Oura sleep. Height is a scalar, so prefer Withings then any source.
+  function mergeBundles(bundles) {
+    const merged = newBundle(bundles.length === 1 ? bundles[0].source : "mixed");
+    merged.provenance = [];
+    merged.sources = [];
+    bundles.forEach((b) => { if (merged.sources.indexOf(b.source) < 0) merged.sources.push(b.source); });
+
+    const seriesKeys = ["weight", "steps", "distance", "sleep", "pwv", "bp", "activities", "restingHRSeries"];
+    seriesKeys.forEach((k) => {
+      let best = null, bestBundle = null;
+      bundles.forEach((b) => {
+        if (b[k] && b[k].length && (!best || b[k].length > best.length)) { best = b[k]; bestBundle = b; }
+      });
+      if (best) {
+        merged[k] = best;
+        const provKey = k === "restingHRSeries" ? "restingHR" : k;
+        if (bestBundle.prov[provKey]) merged.provenance.push(bestBundle.prov[provKey]);
+      }
+    });
+
+    let hSrc = bundles.find((b) => !isNaN(b.heightIn));
+    const wH = bundles.find((b) => b.source === "withings" && !isNaN(b.heightIn));
+    if (wH) hSrc = wH;
+    if (hSrc) { merged.heightIn = hSrc.heightIn; if (hSrc.prov.height) merged.provenance.push(hSrc.prov.height); }
+    return merged;
+  }
+
+  /* ------------------------------------------------------- model builder --- */
+  // Turns a merged bundle into the model the scorers read. Source agnostic.
+  function buildModel(b) {
+    const weight = b.weight || [];
+    const heightIn = b.heightIn;
+    const steps = b.steps || [];
+    const distance = b.distance || [];
+    const sleep = b.sleep || [];
+    const pwv = b.pwv || [];
+    const bp = b.bp || [];
+    const activities = b.activities || [];
+    const restingHRSeries = b.restingHRSeries || [];
 
     // as-of date = most recent signal we have
     const dateCandidates = [];
@@ -278,10 +333,11 @@
     if (steps.length) dateCandidates.push(steps[steps.length - 1].date);
     if (sleep.length) dateCandidates.push(sleep[sleep.length - 1].from);
     if (pwv.length) dateCandidates.push(pwv[pwv.length - 1].date);
+    if (restingHRSeries.length) dateCandidates.push(restingHRSeries[restingHRSeries.length - 1].date);
     const asOf = dateCandidates.length ? new Date(Math.max.apply(null, dateCandidates.map((d) => d.getTime()))) : new Date();
     const asOfMs = asOf.getTime();
 
-    const m = { asOf: asOf, has: {}, provenance: [] };
+    const m = { asOf: asOf, has: {}, provenance: (b.provenance || []).slice(), sources: b.sources || [b.source] };
 
     // body composition
     if (weight.length) {
@@ -306,9 +362,8 @@
         muscleSeries: weight.slice(-30).map((w) => w.muscle).filter((v) => !isNaN(v)),
         count: weight.length,
       };
-      m.provenance.push({ file: "weight.csv", records: weight.length, note: "body composition" });
     }
-    if (!isNaN(heightIn)) { m.heightIn = heightIn; m.provenance.push({ file: "height.csv", records: 1, note: "height " + heightIn.toFixed(1) + " in" }); }
+    if (!isNaN(heightIn)) { m.heightIn = heightIn; }
     if (m.weight && !isNaN(heightIn) && heightIn > 0) {
       m.weight.bmi = (703 * m.weight.latestLb) / (heightIn * heightIn);
     }
@@ -328,9 +383,7 @@
         series: steps.slice(-30).map((r) => r.value),
         count: steps.length,
       };
-      m.provenance.push({ file: "aggregates_steps.csv", records: steps.length, note: "daily steps" });
     }
-    if (distance.length) m.provenance.push({ file: "aggregates_distance.csv", records: distance.length, note: "daily distance" });
 
     // sleep
     if (sleep.length) {
@@ -349,7 +402,6 @@
         nights: nights.length,
         count: sleep.length,
       };
-      m.provenance.push({ file: "sleep.csv", records: sleep.length, note: "sleep sessions" });
     }
 
     // vascular (PWV)
@@ -362,7 +414,6 @@
         series: pwv.slice(-20).map((r) => r.value),
         count: pwv.length,
       };
-      m.provenance.push({ file: "pwv.csv", records: pwv.length, note: "arterial stiffness" });
     }
 
     // blood pressure (often HR only on a scale, cuff needed for sys/dia)
@@ -375,11 +426,18 @@
         latestDia: withSys.length ? withSys[withSys.length - 1].dia : NaN,
         restingHRproxy: hrs.length ? Math.min.apply(null, hrs) : NaN,
       };
-      m.provenance.push({ file: "bp.csv", records: bp.length, note: withSys.length ? "blood pressure" : "heart rate only (no cuff readings)" });
     }
 
-    // resting HR: prefer sleep min, then bp min
-    m.restingHR = m.sleep && !isNaN(m.sleep.restingHR) ? m.sleep.restingHR : (m.bp && !isNaN(m.bp.restingHRproxy) ? m.bp.restingHRproxy : NaN);
+    // explicit daily resting HR (Oura, Apple, Google give this directly)
+    if (restingHRSeries.length) {
+      const rvals = restingHRSeries.slice(-30).map((r) => r.value).filter((v) => !isNaN(v) && v > 0);
+      if (rvals.length) { m.has.restingHR = true; m.restingHRDaily = { median: median(rvals), series: rvals }; }
+    }
+
+    // resting HR: prefer sleep min, then explicit daily resting HR, then bp min
+    m.restingHR = m.sleep && !isNaN(m.sleep.restingHR) ? m.sleep.restingHR
+      : (m.restingHRDaily && !isNaN(m.restingHRDaily.median) ? m.restingHRDaily.median
+        : (m.bp && !isNaN(m.bp.restingHRproxy) ? m.bp.restingHRproxy : NaN));
 
     // strength / cardio sessions from logged activities (last 28 days)
     if (activities.length) {
@@ -392,11 +450,393 @@
         loggedRecent: w28.length,
         totalLogged: activities.length,
       };
-      m.provenance.push({ file: "activities.csv", records: activities.length, note: "logged workouts" });
     }
 
     return m;
   }
+
+  /* ------------------------------------------------------- source adapters -- */
+
+  function baseOf(k) { return String(k).split("/").pop().split("\\").pop().toLowerCase(); }
+  function mapGet(map, base) {
+    base = base.toLowerCase();
+    for (const k in map) { if (baseOf(k) === base) return map[k]; }
+    return null;
+  }
+  function mapFind(map, testFn) {
+    const out = [];
+    for (const k in map) { if (testFn(k, map[k])) out.push({ path: k, text: map[k] }); }
+    return out;
+  }
+
+  /* Withings Health Mate export (flat CSVs). */
+  function extractWithings(map) {
+    const wt = mapGet(map, "weight.csv"), ht = mapGet(map, "height.csv"), st = mapGet(map, "aggregates_steps.csv"),
+      di = mapGet(map, "aggregates_distance.csv"), sl = mapGet(map, "sleep.csv"), pw = mapGet(map, "pwv.csv"),
+      bpf = mapGet(map, "bp.csv"), ac = mapGet(map, "activities.csv");
+    if (!(wt || ht || st || di || sl || pw || bpf || ac)) return null;
+    const b = newBundle("withings");
+    if (wt) { b.weight = parseWeight(wt); if (b.weight.length) b.prov.weight = { file: "Withings weight.csv", records: b.weight.length, note: "body composition" }; }
+    if (ht) { b.heightIn = parseHeightInches(ht); if (!isNaN(b.heightIn)) b.prov.height = { file: "Withings height.csv", records: 1, note: "height " + b.heightIn.toFixed(1) + " in" }; }
+    if (st) { b.steps = parseAggregate(st); if (b.steps.length) b.prov.steps = { file: "Withings aggregates_steps.csv", records: b.steps.length, note: "daily steps" }; }
+    if (di) { b.distance = parseAggregate(di); if (b.distance.length) b.prov.distance = { file: "Withings aggregates_distance.csv", records: b.distance.length, note: "daily distance" }; }
+    if (sl) { b.sleep = parseSleep(sl); if (b.sleep.length) b.prov.sleep = { file: "Withings sleep.csv", records: b.sleep.length, note: "sleep sessions" }; }
+    if (pw) { b.pwv = parsePwv(pw); if (b.pwv.length) b.prov.pwv = { file: "Withings pwv.csv", records: b.pwv.length, note: "arterial stiffness" }; }
+    if (bpf) { b.bp = parseBp(bpf); if (b.bp.length) { const cuff = b.bp.some((r) => !isNaN(r.sys) && r.sys > 0); b.prov.bp = { file: "Withings bp.csv", records: b.bp.length, note: cuff ? "blood pressure" : "heart rate only (no cuff readings)" }; } }
+    if (ac) { b.activities = parseActivities(ac); if (b.activities.length) b.prov.activities = { file: "Withings activities.csv", records: b.activities.length, note: "logged workouts" }; }
+    // only a real Withings export if we actually parsed something
+    const any = b.weight.length || b.steps.length || b.sleep.length || b.pwv.length || b.bp.length || b.activities.length || !isNaN(b.heightIn);
+    return any ? b : null;
+  }
+
+  /* Oura and Google adapters are assigned once their parsers are defined. */
+  function extractOura(map) { return ouraAdapter ? ouraAdapter(map) : null; }
+  function extractApple(map) { return appleAdapter ? appleAdapter(map) : null; }
+  function extractGoogle(map) { return googleAdapter ? googleAdapter(map) : null; }
+  let ouraAdapter = null, appleAdapter = null, googleAdapter = null;
+
+  /* ------------------------------------------------------- Apple Health ---- */
+  /* Parses the export.xml from Health app > Export All Health Data. Reads the
+     opening tag of each <Record>/<Workout> with a streaming regex (no DOM), so
+     a large export stays memory friendly. */
+  function attrsOf(s) {
+    const o = {}; const re = /([\w:]+)="([^"]*)"/g; let m;
+    while ((m = re.exec(s))) o[m[1]] = m[2];
+    return o;
+  }
+  function appleDate(s) {
+    if (!s) return null; s = String(s).trim();
+    const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2}:\d{2})(?:\s*([+-]\d{2}):?(\d{2}))?/);
+    let d;
+    if (m) { let iso = m[1] + "T" + m[2]; if (m[3]) iso += m[3] + ":" + m[4]; d = new Date(iso); }
+    else d = new Date(s);
+    return isNaN(d) ? null : d;
+  }
+  function dayStart(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+  function dayKeyOf(d) { return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); }
+  function keyToDate(k) { const p = k.split("-"); return new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2])); }
+
+  appleAdapter = function (map) {
+    let xml = null;
+    for (const k in map) { if (baseOf(k) === "export.xml") { xml = map[k]; break; } }
+    if (!xml) { for (const k in map) { const v = map[k]; if (/\.xml$/i.test(k) && typeof v === "string" && v.indexOf("HealthData") >= 0) { xml = v; break; } } }
+    if (!xml || xml.indexOf("HK") < 0) return null;
+
+    const stepsBySrcDay = {}, distByDay = {}, weightByDay = {}, bfByDay = {}, rhrByDay = {};
+    const sleepSegs = [], workouts = [];
+    let heightIn = NaN;
+
+    const re = /<(Record|Workout)\b([^>]*?)\/?>/g;
+    let m;
+    while ((m = re.exec(xml))) {
+      const a = attrsOf(m[2]);
+      if (m[1] === "Workout") {
+        const st = appleDate(a.startDate);
+        if (st) workouts.push({ from: st, to: appleDate(a.endDate) || st, type: String(a.workoutActivityType || "").replace("HKWorkoutActivityType", "") });
+        continue;
+      }
+      const type = a.type; if (!type) continue;
+      if (type.indexOf("StepCount") >= 0) {
+        const d = appleDate(a.startDate), n = toNum(a.value);
+        if (d && !isNaN(n)) { const sc = a.sourceName || "?"; (stepsBySrcDay[sc] || (stepsBySrcDay[sc] = {})); const dk = dayKeyOf(d); stepsBySrcDay[sc][dk] = (stepsBySrcDay[sc][dk] || 0) + n; }
+      } else if (type.indexOf("DistanceWalkingRunning") >= 0) {
+        const d = appleDate(a.startDate); let n = toNum(a.value);
+        if (d && !isNaN(n)) { if (/km/i.test(a.unit || "")) n *= 0.621371; const dk = dayKeyOf(d); distByDay[dk] = (distByDay[dk] || 0) + n; }
+      } else if (type.indexOf("BodyMassIndex") >= 0) {
+        // computed from height when available; ignored here
+      } else if (type.indexOf("BodyMass") >= 0) {
+        const d = appleDate(a.startDate || a.endDate); let n = toNum(a.value);
+        if (d && !isNaN(n) && n > 0) { if (/kg/i.test(a.unit || "")) n *= KG_TO_LB; weightByDay[dayKeyOf(d)] = { w: n, date: dayStart(d) }; }
+      } else if (type.indexOf("BodyFatPercentage") >= 0) {
+        const d = appleDate(a.startDate || a.endDate); let n = toNum(a.value);
+        if (d && !isNaN(n)) { if (n <= 1) n *= 100; bfByDay[dayKeyOf(d)] = n; }
+      } else if (type.indexOf("RestingHeartRate") >= 0) {
+        const d = appleDate(a.startDate || a.endDate); const n = toNum(a.value);
+        if (d && !isNaN(n) && n > 0) rhrByDay[dayKeyOf(d)] = { v: n, date: dayStart(d) };
+      } else if (type.indexOf("HeightCumulative") >= 0 || (type.indexOf("Height") >= 0 && type.indexOf("Walking") < 0)) {
+        let n = toNum(a.value); const u = a.unit || "";
+        if (!isNaN(n)) { if (/cm/i.test(u)) heightIn = n / 2.54; else if (/(^|[^c])m\b|meter/i.test(u)) heightIn = n * 39.3700787; else if (/ft/i.test(u)) heightIn = n * 12; else heightIn = n; }
+      } else if (type.indexOf("SleepAnalysis") >= 0) {
+        const s = appleDate(a.startDate), e = appleDate(a.endDate);
+        if (s && e && e > s) sleepSegs.push({ s: s, e: e, state: String(a.value || "") });
+      }
+    }
+
+    const b = newBundle("apple");
+
+    // steps: take the richest source per day (reduces iPhone + Watch double counting)
+    const stepDay = {};
+    Object.keys(stepsBySrcDay).forEach((src) => { const dm = stepsBySrcDay[src]; Object.keys(dm).forEach((dk) => { stepDay[dk] = Math.max(stepDay[dk] || 0, dm[dk]); }); });
+    b.steps = Object.keys(stepDay).map((dk) => ({ date: keyToDate(dk), value: Math.round(stepDay[dk]) })).filter((r) => !isNaN(r.date) && r.value > 0).sort((x, y) => x.date - y.date);
+    if (b.steps.length) b.prov.steps = { file: "Apple Health export.xml (steps)", records: b.steps.length, note: "daily steps" };
+
+    b.distance = Object.keys(distByDay).map((dk) => ({ date: keyToDate(dk), value: distByDay[dk] })).sort((x, y) => x.date - y.date);
+    if (b.distance.length) b.prov.distance = { file: "Apple Health export.xml (distance)", records: b.distance.length, note: "daily distance (mi)" };
+
+    b.weight = Object.keys(weightByDay).map((dk) => ({ date: weightByDay[dk].date, weight: weightByDay[dk].w, fat: bfByDay[dk] != null ? (bfByDay[dk] / 100) * weightByDay[dk].w : NaN, muscle: NaN })).sort((x, y) => x.date - y.date);
+    if (b.weight.length) { const nf = b.weight.filter((w) => !isNaN(w.fat)).length; b.prov.weight = { file: "Apple Health export.xml (body)", records: b.weight.length, note: nf ? "body mass and body fat" : "body mass" }; }
+    if (!isNaN(heightIn)) { b.heightIn = heightIn; b.prov.height = { file: "Apple Health export.xml (height)", records: 1, note: "height " + heightIn.toFixed(1) + " in" }; }
+
+    const rk = Object.keys(rhrByDay);
+    b.restingHRSeries = rk.map((dk) => ({ date: rhrByDay[dk].date, value: rhrByDay[dk].v })).sort((x, y) => x.date - y.date);
+    if (b.restingHRSeries.length) b.prov.restingHR = { file: "Apple Health export.xml (resting HR)", records: b.restingHRSeries.length, note: "daily resting heart rate" };
+
+    b.sleep = groupAppleSleep(sleepSegs);
+    if (b.sleep.length) b.prov.sleep = { file: "Apple Health export.xml (sleep)", records: b.sleep.length, note: "sleep sessions" };
+
+    b.activities = workouts.sort((x, y) => x.from - y.from);
+    if (b.activities.length) b.prov.activities = { file: "Apple Health export.xml (workouts)", records: b.activities.length, note: "logged workouts" };
+
+    const any = b.steps.length || b.weight.length || b.sleep.length || b.restingHRSeries.length;
+    return any ? b : null;
+  };
+
+  // Classify a sleep segment. The native iPhone export stores the integer raw
+  // value of HKCategoryValueSleepAnalysis ("0" InBed, "1" deprecated Asleep,
+  // "2" Awake, "3" Core, "4" Deep, "5" Unspecified, "6" REM). Some third party
+  // exporters write the string constant name instead, so handle both.
+  function appleSleepClass(v) {
+    const s = String(v == null ? "" : v).trim();
+    if (s === "0") return "inbed";
+    if (s === "1") return "generic";
+    if (s === "2") return "awake";
+    if (s === "3") return "core";
+    if (s === "4") return "deep";
+    if (s === "5") return "unspec";
+    if (s === "6") return "rem";
+    if (/AsleepDeep/i.test(s)) return "deep";
+    if (/AsleepREM/i.test(s)) return "rem";
+    if (/AsleepCore/i.test(s)) return "core";
+    if (/AsleepUnspecified/i.test(s)) return "unspec";
+    if (/InBed/i.test(s)) return "inbed";
+    if (/Awake/i.test(s)) return "awake";
+    if (/Asleep/i.test(s)) return "generic";
+    return null;
+  }
+
+  // Cluster Apple sleep segments into nightly sessions (gap > 3h starts a new one)
+  // and derive asleep/deep/rem/inBed the way the shared sleep parser expects.
+  function groupAppleSleep(segs) {
+    if (!segs.length) return [];
+    segs.sort((a, b) => a.s - b.s);
+    const GAP = 3 * 3600 * 1000;
+    const sessions = [];
+    let cur = null;
+    segs.forEach((seg) => {
+      if (!cur || seg.s - cur.end > GAP) { cur = { start: seg.s, end: seg.e, segs: [seg] }; sessions.push(cur); }
+      else { cur.segs.push(seg); if (seg.e > cur.end) cur.end = seg.e; }
+    });
+    const out = [];
+    sessions.forEach((ss) => {
+      let staged = 0, generic = 0, deep = 0, rem = 0, inBed = 0;
+      ss.segs.forEach((seg) => {
+        const dur = (seg.e - seg.s) / 1000, c = appleSleepClass(seg.state);
+        if (c === "inbed") { inBed += dur; return; }
+        if (c === "awake") return;
+        if (c === "deep") { deep += dur; staged += dur; }
+        else if (c === "rem") { rem += dur; staged += dur; }
+        else if (c === "core" || c === "unspec") { staged += dur; }
+        else if (c === "generic") { generic += dur; }
+      });
+      const asleep = staged > 0 ? staged : generic;
+      const inBedSec = inBed > 0 ? inBed : (ss.end - ss.start) / 1000;
+      out.push({
+        from: ss.start, to: ss.end,
+        asleepH: asleep / 3600, inBedH: inBedSec / 3600,
+        eff: inBedSec > 0 ? Math.min(1, asleep / inBedSec) : NaN,
+        deepH: deep / 3600, remH: rem / 3600, latencyMin: NaN, hrMin: NaN, hrAvg: NaN,
+      });
+    });
+    return out.filter((s) => s.from && s.asleepH >= 3).sort((a, b) => a.from - b.from);
+  }
+
+  /* -------------------------------------------------------------- Oura ------ */
+  /* Oura "Export data" (Membership Hub) is a ZIP of snake_case CSVs
+     (sleepmodel.csv, dailyactivity.csv, dailyreadiness.csv, heartrate.csv...).
+     Durations are in SECONDS, efficiency is an integer 1-100, resting HR comes
+     from lowest_heart_rate. Also handles the legacy single "trends" CSV
+     (Title Case headers) and Oura API v2 JSON. Field matching is tolerant so
+     snake_case and Title Case both resolve. */
+  const OURA_FILES = ["sleepmodel.csv", "dailyactivity.csv", "dailysleep.csv",
+    "dailyreadiness.csv", "dailyspo2.csv", "heartrate.csv", "daytimestress.csv",
+    "temperature.csv", "ringbatterylevel.csv"];
+
+  function ouraDurH(v) {
+    const n = toNum(v);
+    if (isNaN(n) || n <= 0) return NaN;
+    if (n > 1000) return n / 3600; // seconds (8h = 28800s)
+    if (n > 50) return n / 60;     // minutes (8h = 480m)
+    return n;                      // already hours
+  }
+  function frac01(v) { const n = toNum(v); if (isNaN(n)) return NaN; return n > 1 ? n / 100 : n; }
+  function fieldVal(o, re) { const k = keyMatching(o, re); return k != null ? o[k] : undefined; }
+  function looksOura(o) {
+    return !!(keyMatching(o, /bedtime.?start/i) || keyMatching(o, /total.?sleep.?(duration|time)/i)
+      || keyMatching(o, /readiness.?score|^readiness$/i) || keyMatching(o, /\bhrv\b|average_hrv/i)
+      || keyMatching(o, /lowest.*heart.?rate|lowest_heart_rate/i) || keyMatching(o, /sleep.?score/i));
+  }
+  function collectOura(node, out, depth) {
+    if (!node || depth > 4) return;
+    if (Array.isArray(node)) { node.forEach((x) => { if (x && typeof x === "object") out.push(x); }); return; }
+    if (typeof node === "object") {
+      ["data", "sleep", "daily_sleep", "sleepmodel", "daily_activity", "dailyactivity", "daily_readiness", "sessions"].forEach((k) => {
+        if (Array.isArray(node[k])) node[k].forEach((x) => { if (x && typeof x === "object") out.push(x); });
+      });
+      if (looksOura(node)) out.push(node);
+    }
+  }
+
+  ouraAdapter = function (map) {
+    const records = [];
+    let touched = false;
+
+    // Membership Hub multi-file CSVs, matched by known file name.
+    OURA_FILES.forEach((fn) => {
+      const t = mapGet(map, fn);
+      if (typeof t === "string") { const rows = parseCSV(t); if (rows.length) { touched = true; rows.forEach((r) => records.push(r)); } }
+    });
+    // Legacy single trends CSV (content sniff) + any Oura JSON.
+    for (const k in map) {
+      const base = baseOf(k), text = map[k];
+      if (typeof text !== "string" || OURA_FILES.indexOf(base) >= 0) continue;
+      if (/\.csv$/i.test(k)) { const rows = parseCSV(text); if (rows.length && looksOura(rows[0])) { touched = true; rows.forEach((r) => records.push(r)); } }
+      else if (/\.json$/i.test(k)) { let o = null; try { o = JSON.parse(text); } catch (e) { o = null; } if (o) { const n = records.length; collectOura(o, records, 0); if (records.length > n) touched = true; } }
+    }
+    if (!touched) return null;
+
+    const sleep = [], steps = [], rhr = [], distance = [];
+    const seenStep = {}, seenRhr = {};
+    const addRhr = (d, v) => { if (!d || isNaN(v) || v <= 0) return; const dk = dayKeyOf(d); if (!seenRhr[dk]) { seenRhr[dk] = 1; rhr.push({ date: dayStart(d), value: v }); } };
+
+    records.forEach((r) => {
+      const typeK = fieldVal(r, /^type$/i);
+      const isDeleted = /deleted/i.test(String(typeK || ""));
+      const dayD = parseDate(fieldVal(r, /^day$|^date$|summary.?date/i));
+
+      // sleep
+      const asleepH = ouraDurH(fieldVal(r, /total.?sleep.?(duration|time)/i));
+      if (!isDeleted && !isNaN(asleepH) && asleepH >= 3) {
+        const from = parseDate(fieldVal(r, /bedtime.?start/i)) || dayD;
+        const to = parseDate(fieldVal(r, /bedtime.?end/i));
+        const remH = ouraDurH(fieldVal(r, /rem.?sleep.?(duration|time)/i));
+        const deepH = ouraDurH(fieldVal(r, /deep.?sleep.?(duration|time)/i));
+        let inBedH = ouraDurH(fieldVal(r, /time.?in.?bed|total.?bedtime|in.?bed.?(duration|time)/i));
+        if (isNaN(inBedH) && from && to && to > from) inBedH = (to - from) / 3600000;
+        let eff = frac01(fieldVal(r, /sleep.?efficiency|^efficiency$/i));
+        if (isNaN(eff)) eff = inBedH > 0 ? Math.min(1, asleepH / inBedH) : NaN;
+        const lat = ouraDurH(fieldVal(r, /sleep.?latency|^latency$/i));
+        const low = toNum(fieldVal(r, /lowest.*heart.?rate|lowest_heart_rate/i));
+        if (from) {
+          sleep.push({
+            from: from, to: to || null,
+            asleepH: asleepH, inBedH: !isNaN(inBedH) && inBedH >= asleepH ? inBedH : asleepH,
+            eff: eff, deepH: isNaN(deepH) ? 0 : deepH, remH: isNaN(remH) ? 0 : remH,
+            latencyMin: isNaN(lat) ? NaN : lat * 60, hrMin: low > 0 ? low : NaN, hrAvg: NaN,
+          });
+          addRhr(from, low);
+        }
+      }
+
+      // steps (one value per day)
+      const stepsK = keyMatching(r, /^steps$|step.?count|daily.?steps/i);
+      if (stepsK && dayD) {
+        const sv = toNum(r[stepsK]);
+        if (!isNaN(sv) && sv > 0) { const dk = dayKeyOf(dayD); if (!seenStep[dk]) { seenStep[dk] = 1; steps.push({ date: dayStart(dayD), value: Math.round(sv) }); } }
+      }
+
+      // distance from equivalent walking distance (meters) or a distance column
+      const distM = toNum(fieldVal(r, /equivalent.?walking.?distance|distance.*\(m\)/i));
+      if (!isNaN(distM) && distM > 0 && dayD) distance.push({ date: dayStart(dayD), value: distM * 0.000621371 });
+
+      // resting HR from a daily row (lowest preferred, else average resting)
+      const low2 = fieldVal(r, /lowest.*resting.?heart.?rate|lowest.*heart.?rate|lowest_heart_rate/i);
+      const rv = toNum(low2 != null ? low2 : fieldVal(r, /average.*resting.?heart.?rate|resting.?heart.?rate/i));
+      if (dayD) addRhr(dayD, rv);
+    });
+
+    // Fallback resting HR: min bpm per day from heartrate.csv if we found none.
+    if (!rhr.length) {
+      const hrf = mapGet(map, "heartrate.csv");
+      if (typeof hrf === "string") {
+        const rows = parseCSV(hrf), byDay = {};
+        rows.forEach((r) => {
+          const d = parseDate(fieldVal(r, /timestamp|^date$|^time$/i)), bpm = toNum(fieldVal(r, /^bpm$|heart.?rate/i));
+          if (d && !isNaN(bpm) && bpm > 0) { const dk = dayKeyOf(d); byDay[dk] = byDay[dk] == null ? bpm : Math.min(byDay[dk], bpm); }
+        });
+        Object.keys(byDay).forEach((dk) => rhr.push({ date: keyToDate(dk), value: byDay[dk] }));
+      }
+    }
+
+    const b = newBundle("oura");
+    b.sleep = sleep.filter((s) => s.from).sort((a, c) => a.from - c.from);
+    if (b.sleep.length) b.prov.sleep = { file: "Oura sleepmodel.csv", records: b.sleep.length, note: "sleep sessions" };
+    b.steps = steps.sort((a, c) => a.date - c.date);
+    if (b.steps.length) b.prov.steps = { file: "Oura dailyactivity.csv", records: b.steps.length, note: "daily steps" };
+    b.distance = distance.sort((a, c) => a.date - c.date);
+    if (b.distance.length) b.prov.distance = { file: "Oura dailyactivity.csv", records: b.distance.length, note: "daily distance (mi)" };
+    b.restingHRSeries = rhr.sort((a, c) => a.date - c.date);
+    if (b.restingHRSeries.length) b.prov.restingHR = { file: "Oura sleepmodel.csv", records: b.restingHRSeries.length, note: "daily resting heart rate" };
+
+    const any = b.sleep.length || b.steps.length || b.restingHRSeries.length;
+    return any ? b : null;
+  };
+
+  /* ------------------------------------------------------------ Google ------ */
+  /* Google Takeout > Fit > "Daily activity metrics": either one aggregate
+     CSV (full timestamps) or per-day files (time only, date from the file name).
+     Columns carry units in the header. Steps sum per day, weight averages
+     (kg -> lb), and "Min heart rate (bpm)" is used as a resting-HR proxy. The
+     native Fit export has no sleep-stage columns, so sleep is left blind. */
+  function looksGoogleFit(path, row) {
+    if (/daily activity metrics/i.test(path)) return true;
+    if (!row) return false;
+    if (keyMatching(row, /move minutes/i) || keyMatching(row, /heart points/i)) return true;
+    if (keyMatching(row, /step count/i) && keyMatching(row, /heart rate \(bpm\)/i)) return true;
+    if (keyMatching(row, /average weight \(kg\)/i)) return true;
+    return false;
+  }
+
+  googleAdapter = function (map) {
+    const day = {};
+    let matched = false;
+    for (const k in map) {
+      const text = map[k];
+      if (typeof text !== "string" || !/\.csv$/i.test(k)) continue;
+      const rows = parseCSV(text);
+      if (!rows.length || !looksGoogleFit(k, rows[0])) continue;
+      matched = true;
+      const fileDate = k.match(/(\d{4}-\d{2}-\d{2})/);
+      rows.forEach((r) => {
+        let dd = parseDate(fieldVal(r, /^date$/i));
+        if (!dd && fileDate) dd = parseDate(fileDate[1]);
+        if (!dd) dd = parseDate(fieldVal(r, /start.?time/i));
+        if (!dd) return;
+        const dk = dayKeyOf(dd);
+        const g = day[dk] || (day[dk] = { date: dayStart(dd), steps: 0, hasSteps: false, wSum: 0, wN: 0, minHr: NaN, dist: 0 });
+        const sc = toNum(fieldVal(r, /step count/i)); if (!isNaN(sc) && sc >= 0) { g.steps += sc; g.hasSteps = true; }
+        const wk = toNum(fieldVal(r, /average weight \(kg\)/i)); if (!isNaN(wk) && wk > 0) { g.wSum += wk; g.wN++; }
+        const mh = toNum(fieldVal(r, /min heart rate \(bpm\)/i)); if (!isNaN(mh) && mh > 0) g.minHr = isNaN(g.minHr) ? mh : Math.min(g.minHr, mh);
+        const dm = toNum(fieldVal(r, /distance \(m\)/i)); if (!isNaN(dm) && dm > 0) g.dist += dm;
+      });
+    }
+    if (!matched) return null;
+
+    const b = newBundle("google");
+    const steps = [], weight = [], rhr = [], distance = [];
+    Object.keys(day).map((dk) => day[dk]).sort((a, c) => a.date - c.date).forEach((g) => {
+      if (g.hasSteps && g.steps > 0) steps.push({ date: g.date, value: Math.round(g.steps) });
+      if (g.wN > 0) weight.push({ date: g.date, weight: (g.wSum / g.wN) * KG_TO_LB, fat: NaN, muscle: NaN });
+      if (!isNaN(g.minHr)) rhr.push({ date: g.date, value: g.minHr });
+      if (g.dist > 0) distance.push({ date: g.date, value: g.dist * 0.000621371 });
+    });
+    b.steps = steps; if (steps.length) b.prov.steps = { file: "Google Fit daily activity metrics", records: steps.length, note: "daily steps" };
+    b.weight = weight; if (weight.length) b.prov.weight = { file: "Google Fit daily activity metrics", records: weight.length, note: "body weight" };
+    b.restingHRSeries = rhr; if (rhr.length) b.prov.restingHR = { file: "Google Fit daily activity metrics", records: rhr.length, note: "lowest daily heart rate (resting proxy)" };
+    b.distance = distance; if (distance.length) b.prov.distance = { file: "Google Fit daily activity metrics", records: distance.length, note: "daily distance (mi)" };
+
+    const any = steps.length || weight.length || rhr.length;
+    return any ? b : null;
+  };
 
   /* ----------------------------------------------------- pillar scoring ---- */
   /* Each scorer returns a status:
@@ -823,18 +1263,22 @@
   async function readFileList(fileList) {
     const files = Array.prototype.slice.call(fileList || []);
     const map = {};
+    const keep = /\.(csv|xml|json)$/i;
     for (const f of files) {
       const lower = f.name.toLowerCase();
       if (lower.endsWith(".zip")) {
-        if (typeof JSZip === "undefined") throw new Error("Zip support did not load. Please unzip the export and drop the .csv files instead.");
+        if (typeof JSZip === "undefined") throw new Error("Zip support did not load. Please unzip the export and drop the files inside it.");
         const buf = await f.arrayBuffer();
         const zip = await JSZip.loadAsync(buf);
-        const names = Object.keys(zip.files);
-        for (const nm of names) {
+        for (const nm of Object.keys(zip.files)) {
           const entry = zip.files[nm];
-          if (!entry.dir && nm.toLowerCase().endsWith(".csv")) map[baseName(nm)] = await entry.async("string");
+          if (entry.dir) continue;
+          const lm = nm.toLowerCase();
+          if (!keep.test(lm)) continue;
+          if (baseName(lm) === "export_cda.xml") continue; // redundant Apple CDA copy, skip to save memory
+          map[lm] = await entry.async("string");
         }
-      } else if (lower.endsWith(".csv")) {
+      } else if (keep.test(lower)) {
         map[baseName(f.name)] = await f.text();
       }
     }
@@ -845,10 +1289,12 @@
     clearError();
     try {
       const map = await readFileList(fileList);
-      if (!Object.keys(map).length) { showError("No CSV files found. Drop your Withings export .zip, or the .csv files inside it."); return; }
+      if (!Object.keys(map).length) { showError("No readable files found. Drop your export .zip (Withings, Apple Health, Oura, or Google Fit), or the .csv / .xml files inside it."); return; }
       const analysis = analyzeFiles(map);
-      const counted = ["weight", "steps", "sleep", "pwv"].some((k) => analysis.has[k]);
-      if (!counted) { showError("Loaded " + Object.keys(map).length + " file(s), but none matched Withings weight, steps, sleep, or PWV. Is this a Withings Health Mate export?"); return; }
+      if (!analysis.provenance || !analysis.provenance.length) {
+        showError("Loaded " + Object.keys(map).length + " file(s), but nothing matched a supported export. Supported today: Withings Health Mate, Apple Health (export.xml), Oura, and Google Fit (Takeout).");
+        return;
+      }
       render(scoreAll(analysis));
     } catch (e) {
       showError("Could not read that file: " + (e && e.message ? e.message : e));
